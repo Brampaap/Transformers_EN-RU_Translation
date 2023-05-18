@@ -1,5 +1,5 @@
 import re
-from typing import List, Tuple, Optional
+from typing import List, Optional, Tuple
 
 from tqdm import tqdm
 
@@ -22,7 +22,6 @@ class TextUtils:
         s = s.strip()
         return s
 
-
     @staticmethod
     def read_langs_pairs_from_file(filename: str):
         """Read lang from file
@@ -41,14 +40,18 @@ class TextUtils:
             lines = f.read().strip().split("\n")
 
         lang_pairs = []
-        for line in tqdm(lines, desc="Reading from file"):
+        for i, line in tqdm(enumerate(lines), desc="Reading from file"):
             lang_pair = tuple(map(TextUtils.normalize_text, line.split("\t")[:2]))
             lang_pairs.append(lang_pair)
 
         return lang_pairs
 
+
 def short_text_filter_function(x, max_length, prefix_filter=None):
-    len_filter = lambda x: len(x[0].split(" ")) <= max_length and len(x[1].split(" ")) <= max_length
+    len_filter = (
+        lambda x: len(x[0].split(" ")) <= max_length
+        and len(x[1].split(" ")) <= max_length
+    )
     if prefix_filter:
         prefix_filter_func = lambda x: x[0].startswith(prefix_filter)
     else:

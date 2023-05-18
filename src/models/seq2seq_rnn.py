@@ -1,44 +1,51 @@
 import torch
 
-import metrics
-from models.attention import Seq2seqAttention
-from models.decoder_rnn import DecoderRNN
-from models.encoder_rnn import EncoderRNN
+import src.metrics as metrics
+from src.models.attention import Seq2seqAttention
+from src.models.decoder_rnn import DecoderRNN
+from src.models.encoder_rnn import EncoderRNN
 
 
 class Seq2SeqRNN(torch.nn.Module):
     def __init__(
-            self,
-            encoder_vocab_size: int,
-            encoder_embedding_size: int,
-            decoder_embedding_size: int,
-            encoder_hidden_size: int,
-            decoder_hidden_size: int,
-            decoder_vocab_size: int,
-            lr: float,
-            device:str,
-            target_tokenizer
+        self,
+        encoder_vocab_size: int,
+        encoder_embedding_size: int,
+        decoder_embedding_size: int,
+        encoder_hidden_size: int,
+        decoder_hidden_size: int,
+        decoder_vocab_size: int,
+        lr: float,
+        device: str,
+        target_tokenizer,
     ):
         super(Seq2SeqRNN, self).__init__()
         self.device = device
         self.encoder = EncoderRNN(
-            encoder_vocab_size=encoder_vocab_size, embedding_size=encoder_embedding_size, hidden_size=encoder_hidden_size,
+            encoder_vocab_size=encoder_vocab_size,
+            embedding_size=encoder_embedding_size,
+            hidden_size=encoder_hidden_size,
         ).to(self.device)
         self.attention_module = Seq2seqAttention().to(self.device)
         self.decoder = DecoderRNN(
-            embedding_size=decoder_embedding_size, decoder_vocab_size=decoder_vocab_size, hidden_size=decoder_hidden_size
+            embedding_size=decoder_embedding_size,
+            decoder_vocab_size=decoder_vocab_size,
+            hidden_size=decoder_hidden_size,
         ).to(self.device)
 
-        self.vocab_projection_layer = torch.nn.Linear(decoder_hidden_size+encoder_hidden_size,
-                                                      decoder_vocab_size).to(self.device)
+        self.vocab_projection_layer = torch.nn.Linear(
+            decoder_hidden_size + encoder_hidden_size, decoder_vocab_size
+        ).to(self.device)
         self.softmax = torch.nn.LogSoftmax(dim=1).to(self.device)
         self.criterion = torch.nn.NLLLoss()
 
         self.optimizer = torch.optim.Adam(
             [
-                {'params': self.encoder.parameters()},
-                {'params': self.decoder.parameters()},
-            ], lr=lr)
+                {"params": self.encoder.parameters()},
+                {"params": self.decoder.parameters()},
+            ],
+            lr=lr,
+        )
         self.target_tokenizer = target_tokenizer
 
     def forward(self, input_tensor: torch.Tensor):
@@ -51,10 +58,10 @@ class Seq2SeqRNN(torch.nn.Module):
         predicted = []
         each_step_distributions = []
         for _ in range(input_tensor.shape[1]):
-            decoder_output, decoder_hidden = self.decoder(
-                decoder_input, decoder_hidden
+            decoder_output, decoder_hidden = self.decoder(decoder_input, decoder_hidden)
+            weighted_decoder_output = self.attention_module(
+                decoder_hidden.squeeze(dim=0), encoder_states
             )
-            weighted_decoder_output = self.attention_module(decoder_hidden.squeeze(dim=0), encoder_states)
             decoder_output = decoder_output.squeeze(dim=1)
             decoder_output = torch.cat([decoder_output, weighted_decoder_output], dim=1)
             linear_vocab_proj = self.vocab_projection_layer(decoder_output)
@@ -64,7 +71,6 @@ class Seq2SeqRNN(torch.nn.Module):
             decoder_input = topi
             each_step_distributions.append(target_vocab_distribution)
         return predicted, each_step_distributions
-
 
     def training_step(self, batch):
         self.optimizer.zero_grad()
@@ -106,7 +112,3 @@ class Seq2SeqRNN(torch.nn.Module):
             predicted=predicted, actual=actuals, target_tokenizer=self.target_tokenizer
         )
         return bleu_score, actual_sentences, predicted_sentences
-
-
-
-
